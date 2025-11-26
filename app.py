@@ -6,6 +6,7 @@ import json
 import pandas as pd
 import plotly.express as px
 from collections import deque
+import time
 
 # --- Import Project Modules ---
 from tracking import ObjectTracker, KeypointsTracker
@@ -13,7 +14,6 @@ from club_assignment import ClubAssigner, Club
 from ball_to_player_assignment import BallToPlayerAssigner
 from annotation import FootballVideoProcessor
 from passing_prediction.config import DEFAULTS
-import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -62,8 +62,8 @@ def load_models():
 
 def auto_detect_team_colors(video_path, tracker):
     """
-    Reads the first valid frame, detects players, clustering their jersey colors 
-    to automatically find Team 1 and Team 2.
+    Reads the first valid frame, detects players, masks out the green field, 
+    and clusters jersey colors to automatically find Team 1 and Team 2.
     """
     cap = cv2.VideoCapture(video_path)
     ret, frame = cap.read()
@@ -72,50 +72,63 @@ def auto_detect_team_colors(video_path, tracker):
     if not ret:
         return "#FFFFFF", "#000000"  # Fallback
 
-    # 1. Detect Objects in the single frame
-    detections = tracker.detect([frame])[0]  # Get first frame detections
+    # 1. Detect Objects
+    results = tracker.detect([frame])
+    result = results[0]
 
     player_crops = []
 
-    # 2. Extract Player Crops (Torso area)
-    for det in detections:
-        # Class ID 0 usually Person in YOLO
-        # You might need to check your specific class IDs if different
-        if det[3] == 0:
-            bbox = det[0]
-            x1, y1, x2, y2 = map(int, bbox)
+    # --- Masking Constants (Green Field) ---
+    LOWER_GREEN = np.array([36, 25, 25])
+    UPPER_GREEN = np.array([86, 255, 255])
 
-            # Crop logic: Take center-top part of bounding box (Jersey area)
-            # Avoid shorts (bottom) and grass (background)
+    # 2. Extract & Mask Player Crops
+    for box in result.boxes:
+        class_id = int(box.cls[0])
+        if class_id == 0:  # Person
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
             w = x2 - x1
             h = y2 - y1
-            crop = frame[y1:y1+int(h*0.5), x1:x1+w]
 
-            if crop.size > 0:
-                # Resize to small square for faster clustering
-                crop = cv2.resize(crop, (50, 50))
-                player_crops.append(crop)
+            if w > 0 and h > 0:
+                # Take upper half (Jersey area)
+                crop = frame[y1:y1+int(h*0.5), x1:x1+w]
+
+                if crop.size > 0:
+                    # --- APPLY GREEN MASK ---
+                    hsv_crop = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+                    mask = cv2.inRange(hsv_crop, LOWER_GREEN, UPPER_GREEN)
+
+                    # Keep only pixels that are NOT green (mask == 0)
+                    pixels = crop.reshape(-1, 3)
+                    mask_flat = mask.reshape(-1)
+                    valid_pixels = pixels[mask_flat == 0]
+
+                    if len(valid_pixels) > 0:
+                        # Randomly sample pixels to save memory if crop is large
+                        if len(valid_pixels) > 200:
+                            indices = np.random.choice(
+                                len(valid_pixels), 200, replace=False)
+                            valid_pixels = valid_pixels[indices]
+
+                        player_crops.append(valid_pixels)
 
     if len(player_crops) < 2:
-        return "#E8F7F8", "#ACFB91"  # Not enough players found
+        return "#E8F7F8", "#ACFB91"  # Fallback if detection fails
 
-    # 3. Stack all crops into one data array
+    # 3. Stack all valid pixels from all players
     data = np.vstack(player_crops)
-    data = data.reshape((-1, 3))
     data = np.float32(data)
 
     # 4. K-Means Clustering (K=2 for two main teams)
-    # Note: We assume background (green) might be dominant, so we might need K=3
-    # and remove the greenest one, or relies on the crop being mostly jersey.
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
     K = 2
     _, labels, centers = cv2.kmeans(
         data, K, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
 
-    # Convert back to uint8
     centers = np.uint8(centers)
 
-    # 5. Return the two colors
+    # 5. Return Detected Colors
     color1 = rgb_to_hex(centers[0])
     color2 = rgb_to_hex(centers[1])
 
@@ -125,7 +138,7 @@ def auto_detect_team_colors(video_path, tracker):
 def main():
     st.title("⚽ Football Analysis AI")
 
-    # Initialize Session State for Colors if not present
+    # Initialize Session State
     if 'team1_color' not in st.session_state:
         st.session_state['team1_color'] = "#E8F7F8"
     if 'team2_color' not in st.session_state:
@@ -141,8 +154,7 @@ def main():
         st.divider()
         st.subheader("Team Colors")
 
-        # --- AUTOMATIC DETECTION UI LOGIC ---
-        # The pickers now listen to session_state
+        # Color Pickers (Auto-updated via session_state)
         c1_hex = st.color_picker(
             "Team 1 Color", st.session_state['team1_color'])
         c2_hex = st.color_picker(
@@ -151,31 +163,26 @@ def main():
         run_btn = st.button("🚀 Start Analysis", type="primary")
 
     if uploaded_file:
-        # Unique timestamp to fix the "Same Name" bug
+        # Use timestamp to create unique filename
         timestamp = int(time.time())
         unique_filename = f"{uploaded_file.name.split('.')[0]}_{timestamp}.mp4"
         input_path = os.path.join(INPUT_DIR, unique_filename)
 
-        # Save file
         with open(input_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
         # --- AUTO DETECT TRIGGER ---
-        # If this is a new file and we haven't detected yet
+        # Runs only once per file upload
         if not st.session_state['auto_detected']:
-            with st.spinner("🤖 Auto-detecting Jersey Colors..."):
-                # Load models just for detection frame
+            with st.spinner("🤖 Auto-detecting Jersey Colors (Filtering Grass)..."):
                 obj_tracker, _ = load_models()
                 detected_c1, detected_c2 = auto_detect_team_colors(
                     input_path, obj_tracker)
 
-                # Update Session State
                 st.session_state['team1_color'] = detected_c1
                 st.session_state['team2_color'] = detected_c2
                 st.session_state['auto_detected'] = True
-
-                # Rerun to update the Color Pickers visually
-                st.rerun()
+                st.rerun()  # Refresh sidebar to show new colors
 
         output_video_path = os.path.join(
             OUTPUT_DIR, f"analyzed_{unique_filename}")
@@ -184,7 +191,6 @@ def main():
         if run_btn:
             obj_tracker, kp_tracker = load_models()
 
-            # Use the colors from the pickers (which might be auto-detected or manually adjusted)
             club1 = Club('Team 1', hex_to_rgb(c1_hex), (255, 255, 255))
             club2 = Club('Team 2', hex_to_rgb(c2_hex), (255, 255, 255))
 
@@ -212,7 +218,7 @@ def main():
             fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-            # Video Writer (Using H.264 / avc1)
+            # Attempt AVC1 (H.264) for browser compatibility, fallback to MP4V
             try:
                 fourcc = cv2.VideoWriter_fourcc(*'avc1')
             except:
@@ -262,10 +268,13 @@ def main():
             cap.release()
             out.release()
 
+            # Save data
             with open(threat_data_path, 'w') as f:
                 json.dump(threat_history, f)
 
+            # Generate Heatmaps
             processor.generate_heatmaps()
+
             status_text.success("Analysis Complete!")
             st.rerun()
 
@@ -313,8 +322,9 @@ def show_dashboard(video_path, threat_data_path):
                 df_preds = pd.DataFrame(preds)
                 if not df_preds.empty:
                     high_val = df_preds[df_preds['score'] > 0.7]
+                    # Fixed deprecation warning using width instead of use_container_width
                     st.dataframe(high_val[['frame', 'type', 'score']],
-                                 hide_index=True, use_container_width=True)
+                                 hide_index=True, width=1000)
             else:
                 st.info("No pass predictions found.")
 
@@ -329,7 +339,8 @@ def show_dashboard(video_path, threat_data_path):
                     "Select Player", heatmap_files,
                     format_func=lambda x: f"Player {x.split('_')[2].split('.')[0]}"
                 )
-                # Fixed the warning here too
+
+                # Fixed deprecation warning
                 st.image(os.path.join(HEATMAP_DIR, selected_map),
                          caption=f"Activity Map: {selected_map}",
                          use_container_width=True)
