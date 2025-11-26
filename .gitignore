@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+env/
+venv/
+.env
+.idea/
+.vscode/
+
+# ML artifacts & large outputs (ignore these)
+input_videos/
+output_videos/
+runs/
+models/weights/
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.mov
+
+# datasets
+data/
+data_raw/
+*.zip
+
+# misc
+.DS_Store
+Thumbs.db
