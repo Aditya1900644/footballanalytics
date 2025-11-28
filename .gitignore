@@ -1,28 +1,49 @@
 # Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.env
 env/
 venv/
-.env
-.idea/
-.vscode/
+.venv/
 
-# ML artifacts & large outputs (ignore these)
+# IDE / editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ML artifacts & datasets / outputs
 input_videos/
 output_videos/
 runs/
 models/weights/
+models/*.pt
 *.pt
 *.pth
 *.ckpt
+*.h5
+*.onnx
+*.tflite
+
+# Video / large media
 *.mp4
 *.mov
+*.avi
 
-# datasets
-data/
-data_raw/
-*.zip
+# Notebooks checkpoints
+.ipynb_checkpoints/
 
-# misc
-.DS_Store
-Thumbs.db
+# React / Node
+client/node_modules/
+client/dist/
+client/.vite/
+client/build/
+
+# NPM / lock
+*.log
+
+# Misc
+tree1_output.txt
+*.db
