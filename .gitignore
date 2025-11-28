@@ -47,3 +47,6 @@ client/build/
 # Misc
 tree1_output.txt
 *.db
+
+#backup
+football_env_cross.yml
