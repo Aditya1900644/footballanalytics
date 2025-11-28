@@ -54,17 +54,15 @@ def main():
         # 22-23 (right goal box corners)
         [495, 122], [495, 229],
         [527, 0], [527, 57], [527, 122], [527, 229], [
-            527, 293], [527, 351],  # 24-29 (right goal line)
+            527, 293], [527, 351],
         # 30-31 (center circle
         [210, 176], [317, 176]
     ])
-    # 5b. Define Pass Predictor Configuration (Optional step, but good practice)
+    # 5b. Define Pass Predictor Configuration
     pass_cfg = DEFAULTS.copy()
 
     # 5c. Initialize the Pass Data Writer
     pass_data_writer = PassDataWriter(save_dir='output_videos')
-
-    # ... (Then update the processor call) ...
 
     processor = FootballVideoProcessor(obj_tracker,
                                        kp_tracker,

@@ -172,7 +172,7 @@ def main():
             f.write(uploaded_file.getbuffer())
 
         # --- AUTO DETECT TRIGGER ---
-        # Runs only once per file upload
+
         if not st.session_state['auto_detected']:
             with st.spinner("🤖 Auto-detecting Jersey Colors (Filtering Grass)..."):
                 obj_tracker, _ = load_models()
@@ -217,6 +217,13 @@ def main():
             cap = cv2.VideoCapture(input_path)
             fps = cap.get(cv2.CAP_PROP_FPS)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            # Inside app.py
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            print(f"DEBUG: Input FPS detected as: {fps}")
+            print(f"DEBUG: Total Frames: {total_frames}")
 
             # Attempt AVC1 (H.264) for browser compatibility, fallback to MP4V
             try:
