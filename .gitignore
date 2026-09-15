@@ -47,3 +47,4 @@ client/build/
 # Misc
 tree1_output.txt
 *.db
+*.code-profile
