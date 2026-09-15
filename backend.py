@@ -5,6 +5,7 @@ import uuid
 import json
 import cv2
 import numpy as np
+from pathlib import Path
 from fastapi import FastAPI, UploadFile, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +19,9 @@ from analysis.heatmap_generator import HeatmapGenerator
 
 app = FastAPI()
 
+# Anchor base directory to the file location
+BASE_DIR = Path(__file__).resolve().parent
+
 # 1. Allow the Frontend to talk to us (CORS)
 app.add_middleware(
     CORSMiddleware,
@@ -27,16 +31,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Setup Folders
-UPLOAD_DIR = "input_videos"
-OUTPUT_DIR = "output_videos"
-HEATMAP_DIR = os.path.join(OUTPUT_DIR, "heatmaps")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(HEATMAP_DIR, exist_ok=True)
+# 2. Setup Folders using Pathlib
+UPLOAD_DIR = BASE_DIR / "input_videos"
+OUTPUT_DIR = BASE_DIR / "output_videos"
+HEATMAP_DIR = OUTPUT_DIR / "heatmaps"
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+HEATMAP_DIR.mkdir(parents=True, exist_ok=True)
 
 # 3. Let the browser access the output videos/images
-app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
+app.mount("/outputs", StaticFiles(directory=str(OUTPUT_DIR)), name="outputs")
 
 # Global Job Storage (In memory)
 jobs = {}
@@ -55,15 +60,17 @@ def run_analysis_task(job_id: str, input_path: str, c1_hex: str, c2_hex: str):
         # Setup Paths
         filename = os.path.basename(input_path)
         output_name = f"analyzed_{filename}"
-        output_path = os.path.join(OUTPUT_DIR, output_name)
-        threat_path = os.path.join(OUTPUT_DIR, f"threat_{job_id}.json")
-        pass_path = os.path.join(OUTPUT_DIR, f"passes_{job_id}.json")
+        output_path = str(OUTPUT_DIR / output_name)
 
-        # Initialize Models
+        # Initialize Models with anchored paths
         obj_tracker = ObjectTracker(
-            'models/weights/object-detection.pt', conf=0.5, ball_conf=0.05)
+            str(BASE_DIR / 'models' / 'weights' / 'object-detection.pt'), 
+            conf=0.5, ball_conf=0.05
+        )
         kp_tracker = KeypointsTracker(
-            'models/weights/keypoints-detection.pt', conf=0.3, kp_conf=0.7)
+            str(BASE_DIR / 'models' / 'weights' / 'keypoints-detection.pt'), 
+            conf=0.3, kp_conf=0.7
+        )
 
         club1 = Club('Team 1', hex_to_rgb(c1_hex), (255, 255, 255))
         club2 = Club('Team 2', hex_to_rgb(c2_hex), (255, 255, 255))
@@ -84,8 +91,8 @@ def run_analysis_task(job_id: str, input_path: str, c1_hex: str, c2_hex: str):
 
         processor = FootballVideoProcessor(
             obj_tracker, kp_tracker, club_assigner, ball_assigner,
-            top_down_keypoints, field_img_path='input_videos/field_2d_v2.png',
-            save_tracks_dir=OUTPUT_DIR
+            top_down_keypoints, field_img_path=str(BASE_DIR / 'assets' / 'field_2d_v2.png'),
+            save_tracks_dir=str(OUTPUT_DIR)
         )
 
         # FORCE DISABLE PAUSE
@@ -162,7 +169,7 @@ def run_analysis_task(job_id: str, input_path: str, c1_hex: str, c2_hex: str):
 @app.post("/upload")
 async def upload(file: UploadFile, background_tasks: BackgroundTasks, c1: str = "#E8F7F8", c2: str = "#ACFB91"):
     job_id = str(uuid.uuid4())
-    path = os.path.join(UPLOAD_DIR, f"{job_id}_{file.filename}")
+    path = str(UPLOAD_DIR / f"{job_id}_{file.filename}")
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
@@ -180,5 +187,5 @@ def status(job_id: str):
 
 @app.get("/heatmaps")
 def get_heatmaps():
-    files = [f for f in os.listdir(HEATMAP_DIR) if f.endswith('.png')]
+    files = [f for f in os.listdir(str(HEATMAP_DIR)) if f.endswith('.png')]
     return [{"id": f.split('_')[2].split('.')[0], "url": f"http://localhost:8000/outputs/heatmaps/{f}"} for f in files]
