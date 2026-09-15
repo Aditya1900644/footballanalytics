@@ -1,52 +1,76 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
 .env
+.venv
 env/
 venv/
-.venv/
+ENV/
+env.bak/
+venv.bak/
 
-# IDE / editor
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
 
-# ML artifacts & datasets / outputs
-input_videos/
-output_videos/
-runs/
-models/weights/
-models/*.pt
-*.pt
-*.pth
-*.ckpt
-*.h5
-*.onnx
-*.tflite
-
-# Video / large media
-*.mp4
-*.mov
-*.avi
-
-# Notebooks checkpoints
-.ipynb_checkpoints/
-
-# React / Node
+# Node / Frontend
 client/node_modules/
 client/dist/
-client/.vite/
 client/build/
+client/.env.local
+client/.env.*.local
 
-# NPM / lock
-*.log
+# Large media files and raw videos
+input_videos/*.mp4
+input_videos/*.avi
+input_videos/*.mov
+input_videos/*.mkv
+output_videos/
+runs/
+
+# Keep input_videos directory structure
+!input_videos/.gitkeep
+
+# Heavy Model Weights
+models/weights/*.pt
+models/weights/*.onnx
+models/weights/*.engine
+!models/weights/.gitkeep
+
+# IDEs, editor profiles & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.code-profile
+.DS_Store
+Thumbs.db
 
 # Misc
 tree1_output.txt
 *.db
-
-#backup
-football_env_cross.yml

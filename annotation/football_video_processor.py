@@ -81,8 +81,10 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
         self.pass_cfg = DEFAULTS.copy()
         self.event_trigger = PassTrigger(fps=30.0)
         self.pass_predictor = PassingPredictor()
-        self.pass_data_writer = PassDataWriter(
-            save_dir=save_tracks_dir or "output_videos")
+        
+        # Use cross-platform path resolution for default directories
+        default_save_dir = save_tracks_dir or "output_videos"
+        self.pass_data_writer = PassDataWriter(save_dir=default_save_dir)
         self._predictions_out: List[Dict[str, Any]] = []
 
         self.threat_estimator = RealTimeThreatEstimator()
@@ -94,10 +96,9 @@ class FootballVideoProcessor(AbstractAnnotator, AbstractVideoProcessor):
         # --- NEW: Heatmap Data Accumulator ---
         self.player_positions = defaultdict(list)
 
-        # Ensure output directories
-        os.makedirs(save_tracks_dir or "output_videos", exist_ok=True)
-        os.makedirs(os.path.join(save_tracks_dir or "output_videos",
-                    "pass_clips"), exist_ok=True)
+        # Ensure output directories exist using cross-platform methods
+        os.makedirs(default_save_dir, exist_ok=True)
+        os.makedirs(os.path.join(default_save_dir, "pass_clips"), exist_ok=True)
 
     # --- VISUALIZATION HELPERS ---
     def _annotate_prediction(self, frame: np.ndarray, passer: Dict[str, Any],
